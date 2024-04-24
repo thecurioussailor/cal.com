@@ -29,6 +29,7 @@ const getUserBooking = async (uid: string) => {
           email: true,
           username: true,
           timeZone: true,
+          avatarUrl: true,
         },
       },
       attendees: {
@@ -45,6 +46,7 @@ const getUserBooking = async (uid: string) => {
           eventName: true,
           slug: true,
           timeZone: true,
+          schedulingType: true,
         },
       },
       seatsReferences: {

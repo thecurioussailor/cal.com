@@ -45,11 +45,12 @@ import useTheme from "@calcom/lib/hooks/useTheme";
 import { getEveryFreqFor } from "@calcom/lib/recurringStrings";
 import { getIs24hClockFromLocalStorage, isBrowserLocale24h } from "@calcom/lib/timeFormat";
 import { localStorage } from "@calcom/lib/webstorage";
-import { BookingStatus } from "@calcom/prisma/enums";
+import { BookingStatus, SchedulingType } from "@calcom/prisma/enums";
 import { bookingMetadataSchema } from "@calcom/prisma/zod-utils";
 import { trpc } from "@calcom/trpc/react";
 import {
   Alert,
+  Avatar,
   Badge,
   Button,
   EmailInput,
@@ -226,6 +227,7 @@ export default function Success(props: PageProps) {
 
   const giphyAppData = getEventTypeAppData(eventType, "giphy");
   const giphyImage = giphyAppData?.thankYouPage;
+  const isRoundRobin = eventType.schedulingType === SchedulingType.ROUND_ROBIN;
 
   const eventName = getEventName(eventNameObject, true);
   // Confirmation can be needed in two cases as of now
@@ -295,6 +297,7 @@ export default function Success(props: PageProps) {
 
   function getTitle(): string {
     const titleSuffix = props.recurringBookings ? "_recurring" : "";
+    const titlePrefix = isRoundRobin ? "round_robin_" : "";
     if (isCancelled) {
       return "";
     }
@@ -305,6 +308,11 @@ export default function Success(props: PageProps) {
         });
       }
       return t(`needs_to_be_confirmed_or_rejected${titleSuffix}`);
+    }
+    if (bookingInfo.user) {
+      return t(`${titlePrefix}emailed_you_and_attendees${titleSuffix}`, {
+        user: bookingInfo.user.name || bookingInfo.user.email,
+      });
     }
     return t(`emailed_you_and_attendees${titleSuffix}`);
   }
@@ -399,27 +407,36 @@ export default function Success(props: PageProps) {
                 {!isFeedbackMode && (
                   <>
                     <div
-                      className={classNames(
-                        "mx-auto flex items-center justify-center",
-                        !giphyImage && !isCancelled && !needsConfirmation
-                          ? "bg-success h-12 w-12 rounded-full"
-                          : "",
-                        !giphyImage && !isCancelled && needsConfirmation
-                          ? "bg-subtle h-12 w-12 rounded-full"
-                          : "",
-                        isCancelled ? "bg-error h-12 w-12 rounded-full " : ""
-                      )}>
-                      {giphyImage && !needsConfirmation && !isCancelled && (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img src={giphyImage} alt="Gif from Giphy" />
+                      className={classNames(isRoundRobin && "min-w-32 min-h-24 relative mx-auto h-24 w-32")}>
+                      {isRoundRobin && bookingInfo.user && (
+                        <Avatar
+                          className="mx-auto flex items-center justify-center"
+                          alt={bookingInfo.user.name || bookingInfo.user.email}
+                          size="xl"
+                          imageSrc={`${bookingInfo.user.avatarUrl}`}
+                        />
                       )}
-                      {!giphyImage && !needsConfirmation && !isCancelled && (
-                        <Icon name="check" className="h-5 w-5 text-green-600 dark:text-green-400" />
-                      )}
-                      {needsConfirmation && !isCancelled && (
-                        <Icon name="calendar" className="text-emphasis h-5 w-5" />
-                      )}
-                      {isCancelled && <Icon name="x" className="h-5 w-5 text-red-600 dark:text-red-200" />}
+                      <div
+                        className={classNames(
+                          "mx-auto flex h-12 w-12 items-center justify-center rounded-full",
+                          isRoundRobin &&
+                            "border-cal-bg dark:border-cal-bg-muted absolute bottom-0 right-0 z-10 h-12 w-12 border-8",
+                          !giphyImage && !isCancelled && !needsConfirmation ? "bg-success" : "",
+                          !giphyImage && !isCancelled && needsConfirmation ? "bg-subtle" : "",
+                          isCancelled ? "bg-error" : ""
+                        )}>
+                        {giphyImage && !needsConfirmation && !isCancelled && (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={giphyImage} alt="Gif from Giphy" />
+                        )}
+                        {!giphyImage && !needsConfirmation && !isCancelled && (
+                          <Icon name="check" className="h-5 w-5 text-green-600 dark:text-green-400" />
+                        )}
+                        {needsConfirmation && !isCancelled && (
+                          <Icon name="calendar" className="text-emphasis h-5 w-5" />
+                        )}
+                        {isCancelled && <Icon name="x" className="h-5 w-5 text-red-600 dark:text-red-200" />}
+                      </div>
                     </div>
                     <div className="mb-8 mt-6 text-center last:mb-0">
                       <h3
@@ -466,7 +483,7 @@ export default function Success(props: PageProps) {
                         )}
                         <div className="font-medium">{t("what")}</div>
                         <div className="col-span-2 mb-6 last:mb-0" data-testid="booking-title">
-                          {eventName}
+                          {isRoundRobin ? bookingInfo.title : eventName}
                         </div>
                         <div className="font-medium">{t("when")}</div>
                         <div className="col-span-2 mb-6 last:mb-0">
@@ -870,10 +887,10 @@ export default function Success(props: PageProps) {
                     </>
                   ) : (
                     <>
-                      <div className="my-3 flex justify-end">
+                      <div className="my-3 flex justify-center space-x-1">
                         <button
                           className={classNames(
-                            "m-1 items-center justify-center rounded-full border p-1 text-2xl hover:opacity-100",
+                            "flex h-10 w-10 items-center justify-center rounded-full border text-2xl hover:opacity-100",
                             rateValue === 1
                               ? "border-focus bg-emphasis"
                               : "border-muted bg-default opacity-50"
@@ -884,7 +901,7 @@ export default function Success(props: PageProps) {
                         </button>
                         <button
                           className={classNames(
-                            "m-1 items-center justify-center rounded-full border p-1 text-2xl hover:opacity-100",
+                            "flex h-10 w-10 items-center justify-center rounded-full border text-2xl hover:opacity-100",
                             rateValue === 2
                               ? "border-focus bg-emphasis"
                               : "border-muted bg-default opacity-50"
@@ -895,7 +912,7 @@ export default function Success(props: PageProps) {
                         </button>
                         <button
                           className={classNames(
-                            "m-1 items-center justify-center rounded-full border p-1 text-2xl hover:opacity-100",
+                            "flex h-10 w-10 items-center justify-center rounded-full border text-2xl hover:opacity-100",
                             rateValue === 3
                               ? "border-focus bg-emphasis"
                               : " border-muted bg-default opacity-50"
@@ -906,7 +923,7 @@ export default function Success(props: PageProps) {
                         </button>
                         <button
                           className={classNames(
-                            "m-1 items-center justify-center rounded-full border p-1 text-2xl hover:opacity-100",
+                            "flex h-10 w-10 items-center justify-center rounded-full border text-2xl hover:opacity-100",
                             rateValue === 4
                               ? "border-focus bg-emphasis"
                               : "border-muted bg-default opacity-50"
@@ -917,7 +934,7 @@ export default function Success(props: PageProps) {
                         </button>
                         <button
                           className={classNames(
-                            "m-1 items-center justify-center rounded-full border p-1 text-2xl hover:opacity-100",
+                            "flex h-10 w-10 items-center justify-center rounded-full border text-2xl hover:opacity-100",
                             rateValue === 5
                               ? "border-focus bg-emphasis"
                               : "border-muted bg-default opacity-50"
